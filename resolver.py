@@ -14,19 +14,27 @@ Routes:
 """
 import json
 import os
+import shutil
 import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 
 PORT = int(os.environ.get("PORT", 8080))
 ALLOWED_ORIGIN = "https://montemusic.pages.dev"
-COOKIES_FILE = "/etc/secrets/youtube_cookies.txt"
+
+# Render mounts secret files read-only, but yt-dlp wants to write back
+# updated cookies after each run — so copy to a writable path first.
+_SECRET_COOKIES_FILE = "/etc/secrets/youtube_cookies.txt"
+COOKIES_FILE = "/tmp/youtube_cookies.txt"
+if os.path.exists(_SECRET_COOKIES_FILE):
+    shutil.copyfile(_SECRET_COOKIES_FILE, COOKIES_FILE)
 COOKIES_ARGS = ["--cookies", COOKIES_FILE] if os.path.exists(COOKIES_FILE) else []
+REMOTE_COMPONENTS_ARGS = ["--remote-components", "ejs:github"]
 
 
 def search_youtube(query, limit=8):
     result = subprocess.run(
-        ["yt-dlp", f"ytsearch{limit}:{query}", "--flat-playlist", "--dump-json", "--no-warnings"] + COOKIES_ARGS,
+        ["yt-dlp", f"ytsearch{limit}:{query}", "--flat-playlist", "--dump-json", "--no-warnings"] + COOKIES_ARGS + REMOTE_COMPONENTS_ARGS,
         capture_output=True, text=True, timeout=30,
     )
     if result.returncode != 0:
@@ -45,7 +53,7 @@ def search_youtube(query, limit=8):
 
 def resolve_audio_url(youtube_url):
     result = subprocess.run(
-        ["yt-dlp", "--no-playlist", "-f", "bestaudio[ext=m4a]", "-g", youtube_url] + COOKIES_ARGS,
+        ["yt-dlp", "--no-playlist", "-f", "bestaudio[ext=m4a]", "-g", youtube_url] + COOKIES_ARGS + REMOTE_COMPONENTS_ARGS,
         capture_output=True, text=True, timeout=30,
     )
     if result.returncode != 0:
