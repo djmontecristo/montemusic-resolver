@@ -20,11 +20,13 @@ from urllib.parse import urlparse, parse_qs
 
 PORT = int(os.environ.get("PORT", 8080))
 ALLOWED_ORIGIN = "https://montemusic.pages.dev"
+COOKIES_FILE = "/etc/secrets/youtube_cookies.txt"
+COOKIES_ARGS = ["--cookies", COOKIES_FILE] if os.path.exists(COOKIES_FILE) else []
 
 
 def search_youtube(query, limit=8):
     result = subprocess.run(
-        ["yt-dlp", f"ytsearch{limit}:{query}", "--flat-playlist", "--dump-json", "--no-warnings"],
+        ["yt-dlp", f"ytsearch{limit}:{query}", "--flat-playlist", "--dump-json", "--no-warnings"] + COOKIES_ARGS,
         capture_output=True, text=True, timeout=30,
     )
     if result.returncode != 0:
@@ -43,9 +45,7 @@ def search_youtube(query, limit=8):
 
 def resolve_audio_url(youtube_url):
     result = subprocess.run(
-        ["yt-dlp", "--no-playlist", "-f", "bestaudio[ext=m4a]",
-         "--extractor-args", "youtube:player_client=android,web_safari",
-         "-g", youtube_url],
+        ["yt-dlp", "--no-playlist", "-f", "bestaudio[ext=m4a]", "-g", youtube_url] + COOKIES_ARGS,
         capture_output=True, text=True, timeout=30,
     )
     if result.returncode != 0:
