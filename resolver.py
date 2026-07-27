@@ -43,7 +43,9 @@ def search_youtube(query, limit=8):
 
 def resolve_audio_url(youtube_url):
     result = subprocess.run(
-        ["yt-dlp", "--no-playlist", "-f", "bestaudio[ext=m4a]", "-g", youtube_url],
+        ["yt-dlp", "--no-playlist", "-f", "bestaudio[ext=m4a]",
+         "--extractor-args", "youtube:player_client=android,web_safari",
+         "-g", youtube_url],
         capture_output=True, text=True, timeout=30,
     )
     if result.returncode != 0:
