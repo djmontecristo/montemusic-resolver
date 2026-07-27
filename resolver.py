@@ -9,6 +9,7 @@ need their own delivery path.
 
 Routes:
   GET /resolve?url=<youtube-url>  -> {ok, streamUrl} or {ok: false, error}
+  GET /search?q=<query>           -> {ok, results} — search YouTube
   GET /health
 """
 import json
@@ -19,6 +20,25 @@ from urllib.parse import urlparse, parse_qs
 
 PORT = int(os.environ.get("PORT", 8080))
 ALLOWED_ORIGIN = "https://montemusic.pages.dev"
+
+
+def search_youtube(query, limit=8):
+    result = subprocess.run(
+        ["yt-dlp", f"ytsearch{limit}:{query}", "--flat-playlist", "--dump-json", "--no-warnings"],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "yt-dlp search failed")
+    results = []
+    for line in result.stdout.strip().splitlines():
+        entry = json.loads(line)
+        results.append({
+            "videoId": entry.get("id"),
+            "title": entry.get("title"),
+            "channel": entry.get("channel"),
+            "url": f"https://www.youtube.com/watch?v={entry.get('id')}",
+        })
+    return results
 
 
 def resolve_audio_url(youtube_url):
@@ -67,6 +87,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json(200, {"ok": True, "streamUrl": stream_url})
             except Exception as e:
                 print("resolve failed:", e)
+                return self._send_json(500, {"ok": False, "error": str(e)})
+
+        if parsed.path == "/search":
+            query = params.get("q", [None])[0]
+            if not query:
+                return self._send_json(400, {"ok": False, "error": "missing q param"})
+            try:
+                results = search_youtube(query)
+                return self._send_json(200, {"ok": True, "results": results})
+            except Exception as e:
+                print("search failed:", e)
                 return self._send_json(500, {"ok": False, "error": str(e)})
 
         if parsed.path == "/health":
